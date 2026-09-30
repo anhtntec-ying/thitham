@@ -7,7 +7,8 @@ import hashlib
 import html
 import json
 import os
-from datetime import datetime
+import secrets
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import streamlit as st
@@ -177,6 +178,7 @@ header[data-testid="stHeader"] { background: transparent; }
 [data-baseweb="input"] { border: 2px solid var(--line) !important; }
 [data-baseweb="input"] button svg { fill: var(--muted); }
 [data-testid="stCaptionContainer"] p { color: var(--muted) !important; }
+[data-testid="stCheckbox"] p { color: var(--ink) !important; }
 [data-testid="stPopoverBody"] { background: #fff !important; color: var(--ink) !important; }
 
 /* Tab dạng viên thuốc (cho cả bản Streamlit mới) */
@@ -460,6 +462,59 @@ def login(username: str, password: str) -> bool:
     return hash_pw(password, row["salt"]) == row["pw_hash"]
 
 
+# ----- Ghi nhớ đăng nhập (cookie) -----
+SESSION_COOKIE = "thitham_login"
+SESSION_DAYS = 30
+
+
+def token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def create_session(username: str) -> str:
+    token = secrets.token_urlsafe(32)
+    db().table("sessions").insert({
+        "token_hash": token_hash(token),
+        "username": username,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(days=SESSION_DAYS)).isoformat(),
+    }).execute()
+    return token
+
+
+def restore_session():
+    """Đọc cookie của trình duyệt, nếu còn hạn thì tự đăng nhập lại."""
+    token = st.context.cookies.get(SESSION_COOKIE)
+    if not token:
+        return
+    rows = (
+        db().table("sessions").select("username, expires_at")
+        .eq("token_hash", token_hash(token)).execute().data
+    )
+    if not rows or datetime.fromisoformat(rows[0]["expires_at"]) < datetime.now(timezone.utc):
+        return
+    st.session_state.user = rows[0]["username"]
+    st.session_state.token = token
+    # Gia hạn thêm mỗi lần quay lại
+    db().table("sessions").update({
+        "expires_at": (datetime.now(timezone.utc) + timedelta(days=SESSION_DAYS)).isoformat()
+    }).eq("token_hash", token_hash(token)).execute()
+    st.session_state.set_cookie = token
+
+
+def cookie_js(value: str, max_age: int):
+    components.html(
+        "<script>window.parent.document.cookie = "
+        f"'{SESSION_COOKIE}={value}; max-age={max_age}; path=/; SameSite=Lax; Secure';</script>",
+        height=0,
+    )
+
+
+def remember(username: str):
+    token = create_session(username)
+    st.session_state.token = token
+    st.session_state.set_cookie = token
+
+
 # ----- Phòng chat -----
 @st.cache_data(ttl=60, show_spinner=False)
 def my_rooms(me: str):
@@ -604,6 +659,10 @@ def leave_to_lobby():
 
 
 def logout():
+    token = st.session_state.pop("token", None)
+    if token:
+        db().table("sessions").delete().eq("token_hash", token_hash(token)).execute()
+    st.session_state.clear_cookie = True
     for k in ("user", "room", "room_msgs", "last_seen_id", "read_upto"):
         st.session_state.pop(k, None)
     st.rerun()
@@ -634,9 +693,12 @@ def auth_screen():
         with st.form("login"):
             u = st.text_input("Tên của bạn")
             p = st.text_input("Mật khẩu", type="password")
+            keep = st.checkbox("Ghi nhớ đăng nhập trên máy này", value=True)
             if st.form_submit_button("Đăng nhập", use_container_width=True):
                 if login(u.strip(), p):
                     st.session_state.user = u.strip()
+                    if keep:
+                        remember(u.strip())
                     st.rerun()
                 else:
                     st.error("Sai tên hoặc mật khẩu rồi.")
@@ -662,6 +724,7 @@ def auth_screen():
                         st.error(err)
                     else:
                         st.session_state.user = u
+                        remember(u)
                         st.rerun()
 
 
@@ -846,7 +909,7 @@ def room_screen():
                 leave_to_lobby()
 
     # Gửi tin trước khi vẽ khung chat, để tin mình hiện ra ngay trong cùng lượt
-    text = st.chat_input("Thì thầm tí ko?")
+    text = st.chat_input("Bạn muốn thì thầm gì?")
     if text and text.strip():
         send_message(room["id"], me, text.strip()[:2000])
 
@@ -862,6 +925,18 @@ def room_screen():
 
 
 # ---------- Điều hướng ----------
+if "user" not in st.session_state and not st.session_state.get("cookie_checked"):
+    st.session_state.cookie_checked = True
+    try:
+        restore_session()
+    except Exception:
+        pass  # lỗi đọc phiên thì cứ cho đăng nhập bình thường
+
+if token := st.session_state.pop("set_cookie", None):
+    cookie_js(token, SESSION_DAYS * 86400)
+if st.session_state.pop("clear_cookie", False):
+    cookie_js("", 0)
+
 if "user" not in st.session_state:
     auth_screen()
 elif "room" not in st.session_state:
