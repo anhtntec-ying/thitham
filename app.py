@@ -167,6 +167,26 @@ header[data-testid="stHeader"] { background: transparent; }
   border: 2px dashed var(--line); border-radius: 20px; padding: 22px 12px;
 }
 .lobby-empty span { font-size: 40px; display: block; }
+
+/* Ép giao diện sáng kể cả khi điện thoại bật chế độ tối */
+[data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] label { color: var(--ink) !important; }
+[data-baseweb="input"], [data-baseweb="base-input"], [data-baseweb="input"] input,
+[data-testid="stChatInput"] textarea {
+  background: #fff !important; color: var(--ink) !important; -webkit-text-fill-color: var(--ink);
+}
+[data-baseweb="input"] { border: 2px solid var(--line) !important; }
+[data-baseweb="input"] button svg { fill: var(--muted); }
+[data-testid="stCaptionContainer"] p { color: var(--muted) !important; }
+[data-testid="stPopoverBody"] { background: #fff !important; color: var(--ink) !important; }
+
+/* Tab dạng viên thuốc (cho cả bản Streamlit mới) */
+button[role="tab"] {
+  background: #fff !important; border: 2px solid var(--line) !important;
+  border-radius: 999px !important; padding: 2px 18px !important; margin-right: 8px;
+}
+button[role="tab"] p { color: var(--ink) !important; font-weight: 600; }
+button[role="tab"][aria-selected="true"] { background: var(--main) !important; border-color: var(--main) !important; }
+[data-baseweb="tab-highlight"], [data-baseweb="tab-border"] { display: none !important; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -441,6 +461,33 @@ def login(username: str, password: str) -> bool:
 
 
 # ----- Phòng chat -----
+@st.cache_data(ttl=60, show_spinner=False)
+def my_rooms(me: str):
+    """Danh sách phòng của mình (lưu tạm 60 giây để đỡ gọi database)."""
+    res = (
+        db().table("room_members").select("room_id, last_read_id, rooms(name)")
+        .eq("username", me).order("joined_at").execute()
+    )
+    return [
+        {"id": r["room_id"], "name": r["rooms"]["name"], "last_read": r["last_read_id"] or 0}
+        for r in res.data
+    ]
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def room_members(room_id: int):
+    res = (
+        db().table("room_members").select("username")
+        .eq("room_id", room_id).order("joined_at").execute()
+    )
+    return [r["username"] for r in res.data]
+
+
+def refresh_rooms():
+    my_rooms.clear()
+    room_members.clear()
+
+
 def create_room(name: str, password: str, me: str):
     """Trả về (phòng, lỗi)."""
     if db().table("rooms").select("id").eq("name", name).execute().data:
@@ -450,6 +497,7 @@ def create_room(name: str, password: str, me: str):
         {"name": name, "salt": salt, "pw_hash": hash_pw(password, salt), "created_by": me}
     ).execute().data[0]
     db().table("room_members").insert({"room_id": room["id"], "username": me}).execute()
+    refresh_rooms()
     return {"id": room["id"], "name": name}, None
 
 
@@ -465,63 +513,40 @@ def join_room(name: str, password: str, me: str):
     )
     if not already:
         db().table("room_members").insert({"room_id": rid, "username": me}).execute()
+    refresh_rooms()
     return {"id": rid, "name": name}, None
-
-
-def my_rooms(me: str):
-    res = (
-        db().table("room_members").select("room_id, last_read_id, rooms(name)")
-        .eq("username", me).order("joined_at").execute()
-    )
-    return [
-        {"id": r["room_id"], "name": r["rooms"]["name"], "last_read": r["last_read_id"] or 0}
-        for r in res.data
-    ]
-
-
-def room_members(room_id: int):
-    res = (
-        db().table("room_members").select("username")
-        .eq("room_id", room_id).order("joined_at").execute()
-    )
-    return [r["username"] for r in res.data]
 
 
 def leave_room(room_id: int, me: str):
     db().table("room_members").delete().eq("room_id", room_id).eq("username", me).execute()
+    refresh_rooms()
 
 
 def mark_read(room_id: int, me: str, msg_id: int):
+    st.session_state.setdefault("read_upto", {})[room_id] = msg_id
     (
         db().table("room_members").update({"last_read_id": msg_id})
         .eq("room_id", room_id).eq("username", me).execute()
     )
 
 
-def room_summary(room_id: int, last_read: int, me: str):
-    """Tin cuối cùng + số tin chưa đọc của một phòng."""
-    last = (
-        db().table("messages").select("username, content, created_at")
-        .eq("room_id", room_id).order("id", desc=True).limit(1).execute().data
-    )
-    unread = (
-        db().table("messages").select("id", count="exact")
-        .eq("room_id", room_id).gt("id", last_read).neq("username", me)
-        .limit(1).execute().count
-    ) or 0
-    return (last[0] if last else None), unread
+def last_read_of(room) -> int:
+    return max(room["last_read"], st.session_state.get("read_upto", {}).get(room["id"], 0))
 
 
 # ----- Tin nhắn -----
+MSG_COLS = "id, room_id, username, content, created_at"
+
+
 def send_message(room_id: int, username: str, content: str):
     db().table("messages").insert(
         {"room_id": room_id, "username": username, "content": content}
     ).execute()
 
 
-def load_messages(room_id: int, limit: int = 200):
+def load_messages(room_id: int, limit: int = 100):
     res = (
-        db().table("messages").select("id, username, content, created_at")
+        db().table("messages").select(MSG_COLS)
         .eq("room_id", room_id).order("id", desc=True).limit(limit).execute()
     )
     return list(reversed(res.data))
@@ -532,25 +557,25 @@ def global_max_id() -> int:
     return r[0]["id"] if r else 0
 
 
-def check_new(me: str, rooms, current_room_id=None):
-    """Tìm tin mới ở mọi phòng mình tham gia để báo."""
-    if "last_seen_id" not in st.session_state:
-        st.session_state.last_seen_id = global_max_id()
-        return
+def fetch_new(rooms):
+    """1 truy vấn duy nhất: mọi tin mới ở các phòng của mình kể từ lần trước."""
     ids = [r["id"] for r in rooms]
     if not ids:
-        return
-    fresh = (
-        db().table("messages").select("id, room_id, username, content")
+        return []
+    return (
+        db().table("messages").select(MSG_COLS)
         .in_("room_id", ids).gt("id", st.session_state.last_seen_id)
-        .order("id").limit(30).execute().data
+        .order("id").limit(50).execute().data
     )
+
+
+def handle_new(me, rooms, fresh, current_room_id=None):
     if not fresh:
         return
-    st.session_state.last_seen_id = fresh[-1]["id"]
-    fresh = [m for m in fresh if m["username"] != me]
-    if fresh:
-        notify(fresh, {r["id"]: r["name"] for r in rooms}, current_room_id)
+    st.session_state.last_seen_id = max(st.session_state.last_seen_id, fresh[-1]["id"])
+    others = [m for m in fresh if m["username"] != me]
+    if others:
+        notify(others, {r["id"]: r["name"] for r in rooms}, current_room_id)
 
 
 def fmt_time(iso: str) -> str:
@@ -566,12 +591,20 @@ def room_icon(name: str) -> str:
 
 def enter_room(room):
     st.session_state.room = room
-    st.session_state.last_seen_id = global_max_id()  # không báo lại tin cũ của phòng mới vào
+    # Lấy mốc trước rồi mới tải tin, để không sót tin nào
+    st.session_state.last_seen_id = global_max_id()
+    st.session_state.room_msgs = load_messages(room["id"])
+    st.rerun()
+
+
+def leave_to_lobby():
+    for k in ("room", "room_msgs"):
+        st.session_state.pop(k, None)
     st.rerun()
 
 
 def logout():
-    for k in ("user", "room", "last_seen_id"):
+    for k in ("user", "room", "room_msgs", "last_seen_id", "read_upto"):
         st.session_state.pop(k, None)
     st.rerun()
 
@@ -633,11 +666,12 @@ def auth_screen():
 
 
 # ---------- Sảnh: danh sách phòng ----------
-@st.fragment(run_every=5)
+@st.fragment(run_every=8)
 def room_list():
     me = st.session_state.user
     rooms = my_rooms(me)
-    check_new(me, rooms)
+    if "last_seen_id" not in st.session_state:
+        st.session_state.last_seen_id = global_max_id()
 
     if not rooms:
         st.markdown(
@@ -647,8 +681,22 @@ def room_list():
         )
         return
 
+    # 1 truy vấn: tin gần đây của tất cả các phòng → vừa làm xem trước, vừa đếm chưa đọc
+    recent = (
+        db().table("messages").select(MSG_COLS)
+        .in_("room_id", [r["id"] for r in rooms])
+        .order("id", desc=True).limit(300).execute().data
+    )
+    fresh = sorted(
+        (m for m in recent if m["id"] > st.session_state.last_seen_id), key=lambda m: m["id"]
+    )
+    handle_new(me, rooms, fresh)
+
     for r in rooms:
-        last, unread = room_summary(r["id"], r["last_read"], me)
+        in_room = [m for m in recent if m["room_id"] == r["id"]]
+        last = in_room[0] if in_room else None
+        lr = last_read_of(r)
+        unread = sum(1 for m in in_room if m["id"] > lr and m["username"] != me)
         if last:
             preview = html.escape(f'{last["username"]}: {last["content"]}'[:60])
             sub = f'{preview} · {fmt_time(last["created_at"])}'
@@ -711,20 +759,26 @@ def lobby_screen():
 
 
 # ---------- Màn hình trong phòng ----------
-@st.fragment(run_every=3)  # tự tải lại tin nhắn mỗi 3 giây
+@st.fragment(run_every=3)  # mỗi 3 giây chỉ hỏi database đúng 1 lần: "có tin gì mới không?"
 def message_list():
     me = st.session_state.user
     room = st.session_state.room
     rooms = my_rooms(me)
+    if "room_msgs" not in st.session_state:
+        st.session_state.last_seen_id = global_max_id()
+        st.session_state.room_msgs = load_messages(room["id"])
+
+    fresh = fetch_new(rooms)
+    if fresh:
+        have = {m["id"] for m in st.session_state.room_msgs}
+        mine_room = [m for m in fresh if m["room_id"] == room["id"] and m["id"] not in have]
+        if mine_room:
+            st.session_state.room_msgs = (st.session_state.room_msgs + mine_room)[-100:]
+        handle_new(me, rooms, fresh, room["id"])
+
+    msgs = st.session_state.room_msgs
     current = next((r for r in rooms if r["id"] == room["id"]), None)
-    if current is None:  # không còn là thành viên phòng này
-        st.session_state.pop("room", None)
-        st.rerun()
-
-    check_new(me, rooms, room["id"])
-    msgs = load_messages(room["id"])
-
-    if msgs and msgs[-1]["id"] > current["last_read"]:
+    if msgs and current and msgs[-1]["id"] > last_read_of(current):
         mark_read(room["id"], me, msgs[-1]["id"])
 
     if not msgs:
@@ -769,8 +823,7 @@ def room_screen():
     c1, c2, c3 = st.columns([1.2, 3, 1.3], vertical_alignment="center")
     with c1:
         if st.button("← Phòng", use_container_width=True):
-            st.session_state.pop("room", None)
-            st.rerun()
+            leave_to_lobby()
     with c2:
         st.markdown(
             f'<div class="room-title"><div class="room-ico">{room_icon(room["name"])}</div>'
@@ -790,8 +843,12 @@ def room_screen():
             st.caption("Rủ thêm người: gửi họ tên phòng + mật khẩu phòng.")
             if st.button("Rời phòng", use_container_width=True):
                 leave_room(room["id"], me)
-                st.session_state.pop("room", None)
-                st.rerun()
+                leave_to_lobby()
+
+    # Gửi tin trước khi vẽ khung chat, để tin mình hiện ra ngay trong cùng lượt
+    text = st.chat_input("Bạn muốn thì thầm gì?")
+    if text and text.strip():
+        send_message(room["id"], me, text.strip()[:2000])
 
     message_list()
 
@@ -802,11 +859,6 @@ def room_screen():
     with c2:
         with st.popover("🔔 Thông báo", use_container_width=True):
             components.html(PERMISSION_HTML, height=110)
-
-    text = st.chat_input("Bạn muốn thì thầm gì?")
-    if text and text.strip():
-        send_message(room["id"], me, text.strip()[:2000])
-        st.rerun()
 
 
 # ---------- Điều hướng ----------
