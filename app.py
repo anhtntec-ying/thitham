@@ -546,7 +546,7 @@ def chat_screen():
         with st.popover("🔔 Thông báo", use_container_width=True):
             components.html(PERMISSION_HTML, height=110)
 
-    text = st.chat_input("Bạn muốn thì thầm gì?")
+    text = st.chat_input("Thì thầm tí không?")
     if text and text.strip():
         send_message(me, text.strip()[:2000])
         st.rerun()
