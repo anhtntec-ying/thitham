@@ -10,6 +10,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import streamlit as st
+import streamlit.components.v1 as components
 from supabase import create_client
 
 APP_NAME = "Thì thầm"                  # đổi tên app ở đây
@@ -135,6 +136,13 @@ header[data-testid="stHeader"] { background: transparent; }
 .time { font-size: 11px; color: var(--muted); margin: 1px 10px 0; }
 .empty { margin: auto; text-align: center; color: var(--muted); font-size: 16px; }
 .empty span { font-size: 44px; display: block; }
+.bubble.big { background: transparent !important; border: none !important; font-size: 40px; line-height: 1.15; padding: 0 4px; }
+
+/* Nút mở bảng icon */
+[data-testid="stPopover"] button {
+  background: #fff; border: 2px solid var(--line); border-radius: 999px; color: var(--plum);
+}
+[data-testid="stPopover"] button:hover { border-color: var(--pink); color: var(--pink-deep); }
 </style>
 """,
     unsafe_allow_html=True,
@@ -147,6 +155,122 @@ def brand(extra: str = ""):
         f'<div><h1>{APP_NAME}</h1><p>{APP_TAGLINE}</p></div></div>{extra}',
         unsafe_allow_html=True,
     )
+
+
+EMOJI_PICKER = r"""
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: 'Baloo 2', system-ui, sans-serif; background: transparent; }
+  .picker { background: #fff; border: 2px solid #F6D9E1; border-radius: 20px; overflow: hidden; }
+  .title { font-size: 13px; font-weight: 700; color: #A58A99; padding: 8px 12px 2px; }
+  .grid {
+    height: 208px; overflow-y: auto; padding: 4px 8px 8px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+  }
+  .grid button {
+    font-size: 25px; line-height: 1; height: 40px; border: none; background: none;
+    border-radius: 10px; cursor: pointer;
+    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  }
+  .grid button:hover { background: #FFE9EF; }
+  .grid button.pop { animation: pop .25s ease; }
+  @keyframes pop { 50% { transform: scale(1.35); } }
+  .empty { grid-column: 1 / -1; color: #A58A99; font-size: 14px; text-align: center; padding-top: 70px; }
+  .tabs { display: flex; justify-content: space-around; border-top: 2px solid #F6D9E1; background: #FFF6F0; }
+  .tabs button {
+    flex: 1; font-size: 19px; padding: 6px 0; border: none; background: none; cursor: pointer;
+    opacity: .45; font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  }
+  .tabs button.on { opacity: 1; box-shadow: inset 0 -3px 0 #FF8FAB; }
+</style>
+<div class="picker">
+  <div class="title" id="title"></div>
+  <div class="grid" id="grid"></div>
+  <div class="tabs" id="tabs"></div>
+</div>
+<script>
+const CATS = [
+  ["🕘", "Hay dùng", null],
+  ["😀", "Mặt cười", "😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😗 😚 😙 😋 😛 😜 🤪 😝 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶 😏 😒 🙄 😬 😌 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤮 🥵 🥶 🥴 😵 🤯 🤠 🥳 😎 🤓 🧐 😕 😟 🙁 😮 😯 😲 😳 🥺 😦 😧 😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿 💀 💩 🤡 👻 👽 🤖"],
+  ["👋", "Cử chỉ", "👋 🤚 ✋ 🖖 👌 🤌 🤏 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ 👍 👎 ✊ 👊 🤛 🤜 👏 🙌 👐 🤲 🙏 💪 🫶 👀 👄 💋 🙆 🙅 🙋 🤷 🤦 💃 🕺 👯 🧘"],
+  ["🐻", "Động vật & thiên nhiên", "🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🙈 🙉 🙊 🐔 🐧 🐦 🐤 🐥 🦆 🦉 🐺 🐴 🦄 🐝 🐛 🦋 🐌 🐞 🐢 🐍 🐙 🦑 🦀 🐠 🐟 🐬 🐳 🦈 🐊 🦒 🐘 🦔 🐾 🌸 🌷 🌹 🌻 🌼 🍀 🌈 ☀️ 🌙 ⭐ ✨ ⚡ 🔥 ❄️ ☔"],
+  ["🍓", "Đồ ăn & thức uống", "🍏 🍎 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🍒 🍑 🥭 🍍 🥥 🥝 🍅 🥑 🌽 🥕 🥔 🍞 🥐 🧀 🥚 🍳 🥓 🍗 🍖 🌭 🍔 🍟 🍕 🥪 🌮 🍜 🍝 🍣 🍱 🍤 🍙 🍚 🍡 🍦 🍩 🍪 🎂 🍰 🧁 🍫 🍬 🍭 🍮 ☕ 🧋 🍵 🍺 🍻 🥂 🍷 🍹"],
+  ["⚽", "Hoạt động & đi chơi", "⚽ 🏀 🏈 ⚾ 🎾 🏐 🏓 🏸 🥊 🎯 🎮 🎲 🧩 🎨 🎬 🎤 🎧 🎸 🎹 🎁 🎈 🎉 🎊 🏆 🥇 🚗 🚕 🛵 🚲 ✈️ 🚀 🏖️ 🏝️ 🏔️ 🏠 🏫 🏥 🎡 🎢 🗽 🗼"],
+  ["💡", "Đồ vật", "📱 💻 ⌚ 📷 💡 📚 ✏️ 📌 📎 ✂️ 🔑 🔒 💰 💸 💳 🛒 🎀 👑 💄 💍 👗 👟 🧸 🪄 🕯️ ⏰ 📅 📝 💌 📦"],
+  ["❤️", "Biểu tượng", "❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💯 💢 💥 💫 💦 💨 💬 💭 💤 ✅ ❌ ❗ ❓ ⚠️ 🆗 🆒 🆕 🔴 🟠 🟡 🟢 🔵 🟣 ⚫ ⚪"],
+];
+
+const grid = document.getElementById("grid");
+const tabs = document.getElementById("tabs");
+const title = document.getElementById("title");
+let current = 1;
+
+function getRecent() {
+  try { return JSON.parse(localStorage.getItem("recentEmoji") || "[]"); } catch (e) { return []; }
+}
+function saveRecent(e) {
+  try {
+    const r = [e, ...getRecent().filter(x => x !== e)].slice(0, 32);
+    localStorage.setItem("recentEmoji", JSON.stringify(r));
+  } catch (err) {}
+}
+
+// Chèn emoji vào ô nhập tin nhắn của Streamlit, đúng vị trí con trỏ
+function insert(e, btn) {
+  const doc = window.parent.document;
+  const ta = doc.querySelector('[data-testid="stChatInputTextArea"]')
+          || doc.querySelector('[data-testid="stChatInput"] textarea');
+  if (!ta) return;
+  const start = ta.selectionStart ?? ta.value.length;
+  const end = ta.selectionEnd ?? ta.value.length;
+  const value = ta.value.slice(0, start) + e + ta.value.slice(end);
+  const setter = Object.getOwnPropertyDescriptor(
+    window.parent.HTMLTextAreaElement.prototype, "value").set;
+  setter.call(ta, value);
+  ta.dispatchEvent(new Event("input", { bubbles: true }));
+  const pos = start + e.length;
+  // Trên điện thoại không focus để khỏi bật bàn phím che mất bảng icon
+  if (!window.matchMedia("(pointer: coarse)").matches) ta.focus();
+  ta.setSelectionRange(pos, pos);
+  saveRecent(e);
+  btn.classList.remove("pop"); void btn.offsetWidth; btn.classList.add("pop");
+}
+
+function render() {
+  const [, name, list] = CATS[current];
+  title.textContent = name;
+  const items = list ? list.split(" ") : getRecent();
+  grid.innerHTML = "";
+  if (!items.length) {
+    grid.innerHTML = '<div class="empty">Chưa có icon nào dùng gần đây</div>';
+  }
+  items.forEach(e => {
+    const b = document.createElement("button");
+    b.textContent = e;
+    b.onclick = () => insert(e, b);
+    grid.appendChild(b);
+  });
+  grid.scrollTop = 0;
+  [...tabs.children].forEach((t, i) => t.classList.toggle("on", i === current));
+}
+
+CATS.forEach(([icon, name], i) => {
+  const t = document.createElement("button");
+  t.textContent = icon;
+  t.title = name;
+  t.onclick = () => { current = i; render(); };
+  tabs.appendChild(t);
+});
+if (getRecent().length) current = 0;
+render();
+</script>
+"""
+
+
+def is_emoji_only(text: str) -> bool:
+    """Tin nhắn chỉ toàn icon (tối đa vài cái) thì hiện to như iPhone."""
+    s = text.replace(" ", "")
+    return 0 < len(s) <= 12 and all(ord(c) > 0x2000 and not c.isalnum() for c in s)
 
 
 # ---------- Kết nối Supabase ----------
@@ -265,6 +389,7 @@ def message_list():
         first = name != prev  # tin đầu tiên của một lượt nói
         prev = name
         emoji, color = avatar_of(name)
+        big = " big" if is_emoji_only(m["content"]) else ""
         text = html.escape(m["content"]).replace("\n", "<br>")
         name_html = (
             f'<div class="name">{html.escape(name)}</div>' if first and not is_me else ""
@@ -272,7 +397,7 @@ def message_list():
         rows.append(
             f'<div class="row {"me" if is_me else "other"}{" first" if first else ""}">'
             f'<div class="ava{"" if first else " hidden"}" style="background:{color}">{emoji}</div>'
-            f'<div class="wrap">{name_html}<div class="bubble">{text}</div>'
+            f'<div class="wrap">{name_html}<div class="bubble{big}">{text}</div>'
             f'<div class="time">{fmt_time(m["created_at"])}</div></div></div>'
         )
 
@@ -298,6 +423,9 @@ def chat_screen():
             st.rerun()
 
     message_list()
+
+    with st.popover("😊 Biểu tượng"):
+        components.html(EMOJI_PICKER, height=300)
 
     text = st.chat_input("Nhắn gì đó đi...")
     if text and text.strip():
