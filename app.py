@@ -5,6 +5,7 @@ App chat dễ thương chạy trên Streamlit, lưu dữ liệu trên Supabase.
 """
 import hashlib
 import html
+import json
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -273,6 +274,110 @@ def is_emoji_only(text: str) -> bool:
     return 0 < len(s) <= 12 and all(ord(c) > 0x2000 and not c.isalnum() for c in s)
 
 
+# Chạy mỗi khi có tin mới: đếm chưa đọc trên tab, kêu "ting", hiện thông báo máy tính
+NOTIFY_JS = r"""
+<script>
+const msgs = __DATA__;
+const APP = __APP__;
+const P = window.parent;
+const doc = P.document;
+
+// Khởi tạo 1 lần: khi quay lại tab thì xóa số tin chưa đọc
+if (!P.__chatNoti) {
+  P.__chatNoti = { unread: 0 };
+  doc.addEventListener("visibilitychange", () => {
+    if (!doc.hidden) { P.__chatNoti.unread = 0; doc.title = APP; }
+  });
+}
+const S = P.__chatNoti;
+
+if (doc.hidden) {
+  S.unread += msgs.length;
+  doc.title = "(" + S.unread + ") " + APP;
+  try {
+    if ("Notification" in P && P.Notification.permission === "granted") {
+      msgs.forEach(m => {
+        const n = new P.Notification(m.name, { body: m.text, tag: "chat-" + m.id });
+        n.onclick = () => { P.focus(); n.close(); };
+      });
+    }
+  } catch (e) {}
+}
+
+// Tiếng "ting ting"
+try {
+  const Ctx = P.AudioContext || P.webkitAudioContext;
+  S.audio = S.audio || new Ctx();
+  const ctx = S.audio;
+  [880, 1320].forEach((f, i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = "sine"; o.frequency.value = f;
+    const t = ctx.currentTime + i * 0.12;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.15, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(t); o.stop(t + 0.3);
+  });
+} catch (e) {}
+</script>
+"""
+
+# Nút xin quyền hiện thông báo trên máy tính
+PERMISSION_HTML = r"""
+<style>
+  body { margin: 0; font-family: 'Baloo 2', system-ui, sans-serif; color: #5B3A4F; font-size: 14px; }
+  button {
+    font: inherit; font-weight: 700; color: #fff; background: #FF8FAB; border: none;
+    border-radius: 999px; padding: 6px 16px; box-shadow: 0 3px 0 #EE6A8F; cursor: pointer;
+  }
+  p { margin: 0 0 8px; line-height: 1.4; }
+</style>
+<div id="box"></div>
+<script>
+const box = document.getElementById("box");
+function show() {
+  if (!("Notification" in window)) {
+    box.innerHTML = "<p>Trình duyệt này chưa hỗ trợ thông báo hệ thống (ví dụ Safari trên iPhone). Bạn vẫn nhận được thông báo nhỏ và tiếng ting khi đang mở app.</p>";
+    return;
+  }
+  const p = Notification.permission;
+  if (p === "granted") {
+    box.innerHTML = "<p>Đã bật ✅ Khi bạn chuyển sang tab khác, tin nhắn mới sẽ hiện thông báo ở góc màn hình.</p>";
+  } else if (p === "denied") {
+    box.innerHTML = "<p>Trình duyệt đang chặn thông báo. Bấm biểu tượng ổ khóa cạnh địa chỉ web → Notifications → Allow, rồi tải lại trang.</p>";
+  } else {
+    box.innerHTML = "<p>Nhận thông báo khi có tin mới lúc bạn đang ở tab khác.</p><button id='on'>🔔 Bật thông báo</button>";
+    document.getElementById("on").onclick = async () => {
+      const r = await Notification.requestPermission();
+      if (r === "granted") {
+        try { new window.parent.Notification("Đã bật thông báo 🔔", { body: "Có tin mới là mình báo liền!" }); } catch (e) {}
+      }
+      show();
+    };
+  }
+}
+show();
+</script>
+"""
+
+
+def notify(fresh):
+    """Báo tin nhắn mới: toast trong app + gọi JS cho tab/âm thanh/thông báo."""
+    for m in fresh[-3:]:
+        emoji, _ = avatar_of(m["username"])
+        preview = m["content"][:60] + ("…" if len(m["content"]) > 60 else "")
+        st.toast(f"**{m['username']}**: {preview}", icon=emoji)
+    data = json.dumps(
+        [{"id": m["id"], "name": m["username"], "text": m["content"][:100]} for m in fresh],
+        ensure_ascii=False,
+    ).replace("</", "<\\/")
+    components.html(
+        NOTIFY_JS.replace("__DATA__", data).replace("__APP__", json.dumps(APP_NAME)),
+        height=0,
+    )
+
+
 # ---------- Kết nối Supabase ----------
 @st.cache_resource
 def db():
@@ -313,7 +418,7 @@ def send_message(username: str, content: str):
 
 def load_messages(limit: int = 200):
     res = (
-        db().table("messages").select("username, content, created_at")
+        db().table("messages").select("id, username, content, created_at")
         .order("id", desc=True).limit(limit).execute()
     )
     return list(reversed(res.data))
@@ -374,6 +479,15 @@ def message_list():
     me = st.session_state.user
     msgs = load_messages()
 
+    # Phát hiện tin mới của người khác kể từ lần tải trước
+    newest = msgs[-1]["id"] if msgs else 0
+    last = st.session_state.setdefault("last_seen_id", newest)
+    if newest > last:
+        fresh = [m for m in msgs if m["id"] > last and m["username"] != me]
+        st.session_state.last_seen_id = newest
+        if fresh:
+            notify(fresh)
+
     if not msgs:
         st.markdown(
             '<div class="chat-box"><div class="empty"><span>🫧</span>'
@@ -420,12 +534,18 @@ def chat_screen():
     with col2:
         if st.button("Đăng xuất", use_container_width=True):
             del st.session_state.user
+            st.session_state.pop("last_seen_id", None)
             st.rerun()
 
     message_list()
 
-    with st.popover("😊 Biểu tượng"):
-        components.html(EMOJI_PICKER, height=300)
+    c1, c2 = st.columns(2)
+    with c1:
+        with st.popover("😊 Biểu tượng", use_container_width=True):
+            components.html(EMOJI_PICKER, height=300)
+    with c2:
+        with st.popover("🔔 Thông báo", use_container_width=True):
+            components.html(PERMISSION_HTML, height=110)
 
     text = st.chat_input("Nhắn gì đó đi...")
     if text and text.strip():
