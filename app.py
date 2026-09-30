@@ -16,9 +16,10 @@ from supabase import create_client
 
 APP_NAME = "Thì thầm"                  # đổi tên app ở đây
 APP_TAGLINE = "chỗ tụi mình tám chuyện"  # dòng chữ nhỏ dưới tên
+APP_ICON = "🐥"                        # icon của app
 VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
-st.set_page_config(page_title=APP_NAME, page_icon="🫧", layout="centered")
+st.set_page_config(page_title=APP_NAME, page_icon=APP_ICON, layout="centered")
 
 # Mỗi người được gán 1 con vật + màu nền cố định theo tên
 AVATARS = [
@@ -36,30 +37,28 @@ def avatar_of(name: str):
 st.markdown(
     """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&display=swap');
-
 :root {
-  --pink: #FF8FAB;
-  --pink-deep: #EE6A8F;
-  --cream: #FFF6F0;
-  --plum: #5B3A4F;
-  --muted: #A58A99;
-  --line: #F6D9E1;
+  --main: #FFD43B;
+  --main-deep: #F0B400;
+  --cream: #FFFBEA;
+  --ink: #5A4520;
+  --muted: #A88F55;
+  --line: #F8E6A0;
 }
 
 /* Nền chấm bi */
 .stApp {
   background-color: var(--cream);
-  background-image: radial-gradient(#F8D3DE 1.6px, transparent 1.6px);
+  background-image: radial-gradient(#F6E3A0 1.6px, transparent 1.6px);
   background-size: 24px 24px;
-  color: var(--plum);
+  color: var(--ink);
 }
 header[data-testid="stHeader"] { background: transparent; }
 
 .stApp p, .stApp label, .stApp input, .stApp textarea,
 .stApp button, .stApp h1, .stApp h2, .stApp h3,
 .stApp [data-baseweb="tab"], .brand, .chat-box {
-  font-family: 'Baloo 2', 'Nunito', system-ui, sans-serif;
+  font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', sans-serif;
 }
 
 /* Tên app */
@@ -69,12 +68,12 @@ header[data-testid="stHeader"] { background: transparent; }
   border: 2px solid var(--line); display: grid; place-items: center;
   font-size: 30px; transform: rotate(-6deg);
 }
-.brand h1 { font-size: 34px; font-weight: 800; color: var(--plum); margin: 0; padding: 0; line-height: 1; }
+.brand h1 { font-size: 34px; font-weight: 700; color: var(--ink); margin: 0; padding: 0; line-height: 1; }
 .brand p { margin: 2px 0 0; color: var(--muted); font-size: 15px; }
 .me-chip {
   display: inline-flex; align-items: center; gap: 6px; background: #fff;
   border: 2px solid var(--line); border-radius: 999px; padding: 2px 12px 2px 4px;
-  font-size: 14px; color: var(--plum);
+  font-size: 14px; color: var(--ink);
 }
 .me-chip .ava { width: 26px; height: 26px; font-size: 15px; }
 
@@ -90,20 +89,20 @@ header[data-testid="stHeader"] { background: transparent; }
   background: #fff; border: 2px solid var(--line) !important;
   border-radius: 999px; padding: 2px 18px !important; height: auto;
 }
-[data-baseweb="tab"][aria-selected="true"] { background: var(--pink); border-color: var(--pink) !important; }
-[data-baseweb="tab"][aria-selected="true"] p { color: #fff !important; }
+[data-baseweb="tab"][aria-selected="true"] { background: var(--main); border-color: var(--main) !important; }
+[data-baseweb="tab"][aria-selected="true"] p { color: var(--ink) !important; }
 [data-baseweb="tab-highlight"], [data-baseweb="tab-border"] { display: none; }
 
 /* Nút bấm tròn trịa, có "đáy" như kẹo */
 .stButton > button, [data-testid="stFormSubmitButton"] > button {
-  background: var(--pink); color: #fff; border: none; border-radius: 999px;
-  font-weight: 700; box-shadow: 0 3px 0 var(--pink-deep);
+  background: var(--main); color: var(--ink); border: none; border-radius: 999px;
+  font-weight: 700; box-shadow: 0 3px 0 var(--main-deep);
 }
 .stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover {
-  background: var(--pink-deep); color: #fff;
+  background: var(--main-deep); color: var(--ink);
 }
 .stButton > button:active, [data-testid="stFormSubmitButton"] > button:active {
-  transform: translateY(2px); box-shadow: 0 1px 0 var(--pink-deep);
+  transform: translateY(2px); box-shadow: 0 1px 0 var(--main-deep);
 }
 
 /* Ô nhập tin nhắn */
@@ -132,8 +131,8 @@ header[data-testid="stHeader"] { background: transparent; }
   padding: 7px 15px; border-radius: 20px; font-size: 16px; line-height: 1.45;
   overflow-wrap: anywhere;
 }
-.row.other .bubble { background: #fff; border: 2px solid var(--line); color: var(--plum); border-bottom-left-radius: 6px; }
-.row.me .bubble { background: var(--pink); color: #fff; border-bottom-right-radius: 6px; }
+.row.other .bubble { background: #fff; border: 2px solid var(--line); color: var(--ink); border-bottom-left-radius: 6px; }
+.row.me .bubble { background: var(--main); color: var(--ink); border-bottom-right-radius: 6px; }
 .time { font-size: 11px; color: var(--muted); margin: 1px 10px 0; }
 .empty { margin: auto; text-align: center; color: var(--muted); font-size: 16px; }
 .empty span { font-size: 44px; display: block; }
@@ -141,9 +140,9 @@ header[data-testid="stHeader"] { background: transparent; }
 
 /* Nút mở bảng icon */
 [data-testid="stPopover"] button {
-  background: #fff; border: 2px solid var(--line); border-radius: 999px; color: var(--plum);
+  background: #fff; border: 2px solid var(--line); border-radius: 999px; color: var(--ink);
 }
-[data-testid="stPopover"] button:hover { border-color: var(--pink); color: var(--pink-deep); }
+[data-testid="stPopover"] button:hover { border-color: var(--main); color: var(--main-deep); }
 </style>
 """,
     unsafe_allow_html=True,
@@ -152,7 +151,7 @@ header[data-testid="stHeader"] { background: transparent; }
 
 def brand(extra: str = ""):
     st.markdown(
-        f'<div class="brand"><div class="logo">🫧</div>'
+        f'<div class="brand"><div class="logo">{APP_ICON}</div>'
         f'<div><h1>{APP_NAME}</h1><p>{APP_TAGLINE}</p></div></div>{extra}',
         unsafe_allow_html=True,
     )
@@ -161,9 +160,9 @@ def brand(extra: str = ""):
 EMOJI_PICKER = r"""
 <style>
   * { box-sizing: border-box; margin: 0; }
-  body { font-family: 'Baloo 2', system-ui, sans-serif; background: transparent; }
-  .picker { background: #fff; border: 2px solid #F6D9E1; border-radius: 20px; overflow: hidden; }
-  .title { font-size: 13px; font-weight: 700; color: #A58A99; padding: 8px 12px 2px; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: transparent; }
+  .picker { background: #fff; border: 2px solid #F8E6A0; border-radius: 20px; overflow: hidden; }
+  .title { font-size: 13px; font-weight: 700; color: #A88F55; padding: 8px 12px 2px; }
   .grid {
     height: 208px; overflow-y: auto; padding: 4px 8px 8px;
     display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
@@ -173,16 +172,16 @@ EMOJI_PICKER = r"""
     border-radius: 10px; cursor: pointer;
     font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
   }
-  .grid button:hover { background: #FFE9EF; }
+  .grid button:hover { background: #FFF3C4; }
   .grid button.pop { animation: pop .25s ease; }
   @keyframes pop { 50% { transform: scale(1.35); } }
-  .empty { grid-column: 1 / -1; color: #A58A99; font-size: 14px; text-align: center; padding-top: 70px; }
-  .tabs { display: flex; justify-content: space-around; border-top: 2px solid #F6D9E1; background: #FFF6F0; }
+  .empty { grid-column: 1 / -1; color: #A88F55; font-size: 14px; text-align: center; padding-top: 70px; }
+  .tabs { display: flex; justify-content: space-around; border-top: 2px solid #F8E6A0; background: #FFFBEA; }
   .tabs button {
     flex: 1; font-size: 19px; padding: 6px 0; border: none; background: none; cursor: pointer;
     opacity: .45; font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
   }
-  .tabs button.on { opacity: 1; box-shadow: inset 0 -3px 0 #FF8FAB; }
+  .tabs button.on { opacity: 1; box-shadow: inset 0 -3px 0 #FFD43B; }
 </style>
 <div class="picker">
   <div class="title" id="title"></div>
@@ -326,10 +325,10 @@ try {
 # Nút xin quyền hiện thông báo trên máy tính
 PERMISSION_HTML = r"""
 <style>
-  body { margin: 0; font-family: 'Baloo 2', system-ui, sans-serif; color: #5B3A4F; font-size: 14px; }
+  body { margin: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #5A4520; font-size: 14px; }
   button {
-    font: inherit; font-weight: 700; color: #fff; background: #FF8FAB; border: none;
-    border-radius: 999px; padding: 6px 16px; box-shadow: 0 3px 0 #EE6A8F; cursor: pointer;
+    font: inherit; font-weight: 700; color: #5A4520; background: #FFD43B; border: none;
+    border-radius: 999px; padding: 6px 16px; box-shadow: 0 3px 0 #F0B400; cursor: pointer;
   }
   p { margin: 0 0 8px; line-height: 1.4; }
 </style>
@@ -490,7 +489,7 @@ def message_list():
 
     if not msgs:
         st.markdown(
-            '<div class="chat-box"><div class="empty"><span>🫧</span>'
+            f'<div class="chat-box"><div class="empty"><span>{APP_ICON}</span>'
             "Chưa ai nói gì cả.<br>Mở lời trước đi!</div></div>",
             unsafe_allow_html=True,
         )
@@ -541,13 +540,13 @@ def chat_screen():
 
     c1, c2 = st.columns(2)
     with c1:
-        with st.popover("😊 Biểu tượng", use_container_width=True):
+        with st.popover("😊 Icon", use_container_width=True):
             components.html(EMOJI_PICKER, height=300)
     with c2:
         with st.popover("🔔 Thông báo", use_container_width=True):
             components.html(PERMISSION_HTML, height=110)
 
-    text = st.chat_input("Nhắn gì đó đi...")
+    text = st.chat_input("Bạn muốn thì thầm gì?")
     if text and text.strip():
         send_message(me, text.strip()[:2000])
         st.rerun()
