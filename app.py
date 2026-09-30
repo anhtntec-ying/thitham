@@ -16,7 +16,7 @@ from supabase import create_client
 
 APP_NAME = "Thì thầm"                  # đổi tên app ở đây
 APP_TAGLINE = "chỗ tụi mình tám chuyện"  # dòng chữ nhỏ dưới tên
-APP_ICON = "🐥"                        # icon của app
+APP_ICON = "🍍"                        # icon của app
 VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 st.set_page_config(page_title=APP_NAME, page_icon=APP_ICON, layout="centered")
