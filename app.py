@@ -16,7 +16,7 @@ from supabase import create_client
 
 APP_NAME = "Thì thầm"                  # đổi tên app ở đây
 APP_TAGLINE = "chỗ tụi mình tám chuyện"  # dòng chữ nhỏ dưới tên
-APP_ICON = "🍍"                        # icon của app
+APP_ICON = "🐥"                        # icon của app
 VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 st.set_page_config(page_title=APP_NAME, page_icon=APP_ICON, layout="centered")
@@ -143,6 +143,30 @@ header[data-testid="stHeader"] { background: transparent; }
   background: #fff; border: 2px solid var(--line); border-radius: 999px; color: var(--ink);
 }
 [data-testid="stPopover"] button:hover { border-color: var(--main); color: var(--main-deep); }
+
+/* Sảnh & phòng */
+.section { font-weight: 700; font-size: 18px; margin: 16px 0 6px; color: var(--ink); }
+.room-card {
+  display: flex; gap: 12px; align-items: center; background: #fff;
+  border: 2px solid var(--line); border-radius: 20px; padding: 10px 14px;
+}
+.room-ico {
+  width: 44px; height: 44px; border-radius: 14px; background: var(--main); color: var(--ink);
+  display: grid; place-items: center; font-weight: 700; font-size: 20px; flex-shrink: 0;
+}
+.room-info { min-width: 0; flex: 1; }
+.room-name { font-weight: 700; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+.room-last { color: var(--muted); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.badge { background: #FF6B6B; color: #fff; font-size: 12px; font-weight: 700; border-radius: 999px; padding: 0 8px; line-height: 20px; }
+.room-title { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 10px; color: var(--ink); }
+.room-title .room-ico { width: 38px; height: 38px; font-size: 18px; border-radius: 12px; }
+.member { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.member .ava { width: 28px; height: 28px; font-size: 16px; }
+.lobby-empty {
+  text-align: center; color: var(--muted); background: rgba(255,255,255,.75);
+  border: 2px dashed var(--line); border-radius: 20px; padding: 22px 12px;
+}
+.lobby-empty span { font-size: 40px; display: block; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -361,14 +385,18 @@ show();
 """
 
 
-def notify(fresh):
-    """Báo tin nhắn mới: toast trong app + gọi JS cho tab/âm thanh/thông báo."""
-    for m in fresh[-3:]:
+def notify(fresh, room_names, current_room_id=None):
+    """Báo tin mới: toast trong app (trừ phòng đang mở) + tab/âm thanh/thông báo máy tính."""
+    toasts = [m for m in fresh if m["room_id"] != current_room_id][-3:]
+    for m in toasts:
         emoji, _ = avatar_of(m["username"])
-        preview = m["content"][:60] + ("…" if len(m["content"]) > 60 else "")
-        st.toast(f"**{m['username']}**: {preview}", icon=emoji)
+        preview = m["content"][:50] + ("…" if len(m["content"]) > 50 else "")
+        room = room_names.get(m["room_id"], "")
+        st.toast(f"**{m['username']}** ở *{room}*: {preview}", icon=emoji)
     data = json.dumps(
-        [{"id": m["id"], "name": m["username"], "text": m["content"][:100]} for m in fresh],
+        [{"id": m["id"],
+          "name": f"{m['username']} · {room_names.get(m['room_id'], '')}",
+          "text": m["content"][:100]} for m in fresh],
         ensure_ascii=False,
     ).replace("</", "<\\/")
     components.html(
@@ -391,6 +419,7 @@ def hash_pw(password: str, salt: str) -> str:
     ).hex()
 
 
+# ----- Tài khoản -----
 def register(username: str, password: str) -> str | None:
     """Trả về thông báo lỗi, hoặc None nếu thành công."""
     exists = db().table("users").select("username").eq("username", username).execute()
@@ -411,16 +440,154 @@ def login(username: str, password: str) -> bool:
     return hash_pw(password, row["salt"]) == row["pw_hash"]
 
 
-def send_message(username: str, content: str):
-    db().table("messages").insert({"username": username, "content": content}).execute()
+# ----- Phòng chat -----
+def create_room(name: str, password: str, me: str):
+    """Trả về (phòng, lỗi)."""
+    if db().table("rooms").select("id").eq("name", name).execute().data:
+        return None, "Tên phòng này có rồi, chọn tên khác nha."
+    salt = os.urandom(16).hex()
+    room = db().table("rooms").insert(
+        {"name": name, "salt": salt, "pw_hash": hash_pw(password, salt), "created_by": me}
+    ).execute().data[0]
+    db().table("room_members").insert({"room_id": room["id"], "username": me}).execute()
+    return {"id": room["id"], "name": name}, None
 
 
-def load_messages(limit: int = 200):
+def join_room(name: str, password: str, me: str):
+    """Trả về (phòng, lỗi)."""
+    res = db().table("rooms").select("id, salt, pw_hash").eq("name", name).execute()
+    if not res.data or hash_pw(password, res.data[0]["salt"]) != res.data[0]["pw_hash"]:
+        return None, "Sai tên phòng hoặc mật khẩu rồi."
+    rid = res.data[0]["id"]
+    already = (
+        db().table("room_members").select("room_id")
+        .eq("room_id", rid).eq("username", me).execute().data
+    )
+    if not already:
+        db().table("room_members").insert({"room_id": rid, "username": me}).execute()
+    return {"id": rid, "name": name}, None
+
+
+def my_rooms(me: str):
+    res = (
+        db().table("room_members").select("room_id, last_read_id, rooms(name)")
+        .eq("username", me).order("joined_at").execute()
+    )
+    return [
+        {"id": r["room_id"], "name": r["rooms"]["name"], "last_read": r["last_read_id"] or 0}
+        for r in res.data
+    ]
+
+
+def room_members(room_id: int):
+    res = (
+        db().table("room_members").select("username")
+        .eq("room_id", room_id).order("joined_at").execute()
+    )
+    return [r["username"] for r in res.data]
+
+
+def leave_room(room_id: int, me: str):
+    db().table("room_members").delete().eq("room_id", room_id).eq("username", me).execute()
+
+
+def mark_read(room_id: int, me: str, msg_id: int):
+    (
+        db().table("room_members").update({"last_read_id": msg_id})
+        .eq("room_id", room_id).eq("username", me).execute()
+    )
+
+
+def room_summary(room_id: int, last_read: int, me: str):
+    """Tin cuối cùng + số tin chưa đọc của một phòng."""
+    last = (
+        db().table("messages").select("username, content, created_at")
+        .eq("room_id", room_id).order("id", desc=True).limit(1).execute().data
+    )
+    unread = (
+        db().table("messages").select("id", count="exact")
+        .eq("room_id", room_id).gt("id", last_read).neq("username", me)
+        .limit(1).execute().count
+    ) or 0
+    return (last[0] if last else None), unread
+
+
+# ----- Tin nhắn -----
+def send_message(room_id: int, username: str, content: str):
+    db().table("messages").insert(
+        {"room_id": room_id, "username": username, "content": content}
+    ).execute()
+
+
+def load_messages(room_id: int, limit: int = 200):
     res = (
         db().table("messages").select("id, username, content, created_at")
-        .order("id", desc=True).limit(limit).execute()
+        .eq("room_id", room_id).order("id", desc=True).limit(limit).execute()
     )
     return list(reversed(res.data))
+
+
+def global_max_id() -> int:
+    r = db().table("messages").select("id").order("id", desc=True).limit(1).execute().data
+    return r[0]["id"] if r else 0
+
+
+def check_new(me: str, rooms, current_room_id=None):
+    """Tìm tin mới ở mọi phòng mình tham gia để báo."""
+    if "last_seen_id" not in st.session_state:
+        st.session_state.last_seen_id = global_max_id()
+        return
+    ids = [r["id"] for r in rooms]
+    if not ids:
+        return
+    fresh = (
+        db().table("messages").select("id, room_id, username, content")
+        .in_("room_id", ids).gt("id", st.session_state.last_seen_id)
+        .order("id").limit(30).execute().data
+    )
+    if not fresh:
+        return
+    st.session_state.last_seen_id = fresh[-1]["id"]
+    fresh = [m for m in fresh if m["username"] != me]
+    if fresh:
+        notify(fresh, {r["id"]: r["name"] for r in rooms}, current_room_id)
+
+
+def fmt_time(iso: str) -> str:
+    t = datetime.fromisoformat(iso).astimezone(VN_TZ)
+    if t.date() == datetime.now(VN_TZ).date():
+        return t.strftime("%H:%M")
+    return t.strftime("%d/%m %H:%M")
+
+
+def room_icon(name: str) -> str:
+    return html.escape(name.strip()[:1].upper() or "#")
+
+
+def enter_room(room):
+    st.session_state.room = room
+    st.session_state.last_seen_id = global_max_id()  # không báo lại tin cũ của phòng mới vào
+    st.rerun()
+
+
+def logout():
+    for k in ("user", "room", "last_seen_id"):
+        st.session_state.pop(k, None)
+    st.rerun()
+
+
+def me_header():
+    me = st.session_state.user
+    emoji, color = avatar_of(me)
+    col1, col2 = st.columns([3, 1], vertical_alignment="center")
+    with col1:
+        brand(
+            f'<div class="me-chip"><span class="ava" style="background:{color}">{emoji}</span>'
+            f"{html.escape(me)}</div>"
+        )
+    with col2:
+        if st.button("Đăng xuất", use_container_width=True):
+            logout()
 
 
 # ---------- Màn hình đăng nhập ----------
@@ -434,7 +601,7 @@ def auth_screen():
         with st.form("login"):
             u = st.text_input("Tên của bạn")
             p = st.text_input("Mật khẩu", type="password")
-            if st.form_submit_button("Vào phòng", use_container_width=True):
+            if st.form_submit_button("Đăng nhập", use_container_width=True):
                 if login(u.strip(), p):
                     st.session_state.user = u.strip()
                     st.rerun()
@@ -445,13 +612,13 @@ def auth_screen():
         with st.form("signup"):
             u = st.text_input("Chọn một cái tên")
             p = st.text_input("Mật khẩu (ít nhất 6 ký tự)", type="password")
-            code = st.text_input("Mã phòng (hỏi người gửi link)", type="password")
+            code = st.text_input("Mã mời (hỏi người gửi link)", type="password")
             if st.form_submit_button("Tạo tài khoản", use_container_width=True):
                 u = u.strip()
                 if not room_code:
                     st.error("Chủ app chưa cài ROOM_CODE trong Secrets.")
                 elif code != room_code:
-                    st.error("Mã phòng chưa đúng.")
+                    st.error("Mã mời chưa đúng.")
                 elif not (2 <= len(u) <= 30):
                     st.error("Tên cần từ 2 đến 30 ký tự.")
                 elif len(p) < 6:
@@ -465,27 +632,100 @@ def auth_screen():
                         st.rerun()
 
 
-# ---------- Màn hình chat ----------
-def fmt_time(iso: str) -> str:
-    t = datetime.fromisoformat(iso).astimezone(VN_TZ)
-    if t.date() == datetime.now(VN_TZ).date():
-        return t.strftime("%H:%M")
-    return t.strftime("%d/%m %H:%M")
+# ---------- Sảnh: danh sách phòng ----------
+@st.fragment(run_every=5)
+def room_list():
+    me = st.session_state.user
+    rooms = my_rooms(me)
+    check_new(me, rooms)
+
+    if not rooms:
+        st.markdown(
+            f'<div class="lobby-empty"><span>{APP_ICON}</span>'
+            "Bạn chưa ở phòng nào.<br>Tạo phòng mới hoặc vào phòng bạn bè gửi nha.</div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    for r in rooms:
+        last, unread = room_summary(r["id"], r["last_read"], me)
+        if last:
+            preview = html.escape(f'{last["username"]}: {last["content"]}'[:60])
+            sub = f'{preview} · {fmt_time(last["created_at"])}'
+        else:
+            sub = "Chưa có tin nhắn nào"
+        badge = f'<span class="badge">{unread if unread < 100 else "99+"}</span>' if unread else ""
+        c1, c2 = st.columns([4, 1], vertical_alignment="center")
+        c1.markdown(
+            f'<div class="room-card"><div class="room-ico">{room_icon(r["name"])}</div>'
+            f'<div class="room-info"><div class="room-name">{html.escape(r["name"])}{badge}</div>'
+            f'<div class="room-last">{sub}</div></div></div>',
+            unsafe_allow_html=True,
+        )
+        if c2.button("Vào", key=f"open_{r['id']}", use_container_width=True):
+            enter_room({"id": r["id"], "name": r["name"]})
 
 
-@st.fragment(run_every=3)  # tự tải lại khung tin nhắn mỗi 3 giây
+def lobby_screen():
+    me = st.session_state.user
+    me_header()
+
+    st.markdown('<div class="section">Phòng của bạn</div>', unsafe_allow_html=True)
+    room_list()
+
+    st.markdown('<div class="section">Thêm phòng</div>', unsafe_allow_html=True)
+    tab_join, tab_new = st.tabs(["Vào phòng có sẵn", "Tạo phòng mới"])
+
+    with tab_join:
+        with st.form("join_room"):
+            name = st.text_input("Tên phòng")
+            pw = st.text_input("Mật khẩu phòng", type="password")
+            if st.form_submit_button("Vào phòng", use_container_width=True):
+                room, err = join_room(name.strip(), pw, me)
+                if err:
+                    st.error(err)
+                else:
+                    enter_room(room)
+
+    with tab_new:
+        with st.form("new_room"):
+            name = st.text_input("Đặt tên phòng (2–40 ký tự)")
+            pw = st.text_input("Đặt mật khẩu phòng (ít nhất 4 ký tự)", type="password")
+            st.caption("Muốn rủ ai vào thì gửi họ tên phòng + mật khẩu này. "
+                       "Chat riêng 2 người: tạo phòng rồi chỉ gửi mật khẩu cho người đó.")
+            if st.form_submit_button("Tạo phòng", use_container_width=True):
+                name = name.strip()
+                if not (2 <= len(name) <= 40):
+                    st.error("Tên phòng cần từ 2 đến 40 ký tự.")
+                elif len(pw) < 4:
+                    st.error("Mật khẩu phòng cần ít nhất 4 ký tự.")
+                else:
+                    room, err = create_room(name, pw, me)
+                    if err:
+                        st.error(err)
+                    else:
+                        enter_room(room)
+
+    with st.popover("🔔 Thông báo"):
+        components.html(PERMISSION_HTML, height=110)
+
+
+# ---------- Màn hình trong phòng ----------
+@st.fragment(run_every=3)  # tự tải lại tin nhắn mỗi 3 giây
 def message_list():
     me = st.session_state.user
-    msgs = load_messages()
+    room = st.session_state.room
+    rooms = my_rooms(me)
+    current = next((r for r in rooms if r["id"] == room["id"]), None)
+    if current is None:  # không còn là thành viên phòng này
+        st.session_state.pop("room", None)
+        st.rerun()
 
-    # Phát hiện tin mới của người khác kể từ lần tải trước
-    newest = msgs[-1]["id"] if msgs else 0
-    last = st.session_state.setdefault("last_seen_id", newest)
-    if newest > last:
-        fresh = [m for m in msgs if m["id"] > last and m["username"] != me]
-        st.session_state.last_seen_id = newest
-        if fresh:
-            notify(fresh)
+    check_new(me, rooms, room["id"])
+    msgs = load_messages(room["id"])
+
+    if msgs and msgs[-1]["id"] > current["last_read"]:
+        mark_read(room["id"], me, msgs[-1]["id"])
 
     if not msgs:
         st.markdown(
@@ -521,20 +761,37 @@ def message_list():
     )
 
 
-def chat_screen():
+def room_screen():
     me = st.session_state.user
-    emoji, color = avatar_of(me)
-    col1, col2 = st.columns([3, 1], vertical_alignment="center")
-    with col1:
-        brand(
-            f'<div class="me-chip"><span class="ava" style="background:{color}">{emoji}</span>'
-            f"{html.escape(me)}</div>"
-        )
-    with col2:
-        if st.button("Đăng xuất", use_container_width=True):
-            del st.session_state.user
-            st.session_state.pop("last_seen_id", None)
+    room = st.session_state.room
+    members = room_members(room["id"])
+
+    c1, c2, c3 = st.columns([1.2, 3, 1.3], vertical_alignment="center")
+    with c1:
+        if st.button("← Phòng", use_container_width=True):
+            st.session_state.pop("room", None)
             st.rerun()
+    with c2:
+        st.markdown(
+            f'<div class="room-title"><div class="room-ico">{room_icon(room["name"])}</div>'
+            f'{html.escape(room["name"])}</div>',
+            unsafe_allow_html=True,
+        )
+    with c3:
+        with st.popover(f"👥 {len(members)}", use_container_width=True):
+            st.markdown(
+                "".join(
+                    f'<div class="member"><span class="ava" style="background:{avatar_of(u)[1]}">'
+                    f"{avatar_of(u)[0]}</span>{html.escape(u)}{' (bạn)' if u == me else ''}</div>"
+                    for u in members
+                ),
+                unsafe_allow_html=True,
+            )
+            st.caption("Rủ thêm người: gửi họ tên phòng + mật khẩu phòng.")
+            if st.button("Rời phòng", use_container_width=True):
+                leave_room(room["id"], me)
+                st.session_state.pop("room", None)
+                st.rerun()
 
     message_list()
 
@@ -546,13 +803,16 @@ def chat_screen():
         with st.popover("🔔 Thông báo", use_container_width=True):
             components.html(PERMISSION_HTML, height=110)
 
-    text = st.chat_input("Thì thầm tí không?")
+    text = st.chat_input("Bạn muốn thì thầm gì?")
     if text and text.strip():
-        send_message(me, text.strip()[:2000])
+        send_message(room["id"], me, text.strip()[:2000])
         st.rerun()
 
 
-if "user" in st.session_state:
-    chat_screen()
-else:
+# ---------- Điều hướng ----------
+if "user" not in st.session_state:
     auth_screen()
+elif "room" not in st.session_state:
+    lobby_screen()
+else:
+    room_screen()
