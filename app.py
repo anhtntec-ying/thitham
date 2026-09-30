@@ -846,7 +846,7 @@ def room_screen():
                 leave_to_lobby()
 
     # Gửi tin trước khi vẽ khung chat, để tin mình hiện ra ngay trong cùng lượt
-    text = st.chat_input("Bạn muốn thì thầm gì?")
+    text = st.chat_input("Thì thầm tí ko?")
     if text and text.strip():
         send_message(room["id"], me, text.strip()[:2000])
 
