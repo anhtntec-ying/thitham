@@ -14,6 +14,29 @@ from zoneinfo import ZoneInfo
 import streamlit as st
 import streamlit.components.v1 as components
 from supabase import create_client
+import httpx
+import time
+
+# Tự thử lại khi kết nối tới Supabase bị ngắt giữa chừng (hay gặp sau khi app để yên một lúc)
+try:
+    from postgrest import SyncQueryRequestBuilder as _QB
+
+    if not getattr(_QB.execute, "_retry", False):
+        _orig_execute = _QB.execute
+
+        def _execute_retry(self):
+            for attempt in range(3):
+                try:
+                    return _orig_execute(self)
+                except httpx.TransportError:
+                    if attempt == 2:
+                        raise
+                    time.sleep(0.3 * (attempt + 1))
+
+        _execute_retry._retry = True
+        _QB.execute = _execute_retry
+except Exception:
+    pass
 
 APP_NAME = "Thì thầm"                  # đổi tên app ở đây
 APP_TAGLINE = "chỗ tụi mình tám chuyện"  # dòng chữ nhỏ dưới tên
