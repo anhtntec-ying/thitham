@@ -154,7 +154,7 @@ header[data-testid="stHeader"] { background: transparent; }
   overflow-wrap: anywhere;
 }
 .row.other .bubble { background: var(--surface); border: 1px solid var(--line); color: var(--ink); border-bottom-left-radius: 6px; }
-.row.me .bubble { background: var(--main); color: var(--on-main); border-bottom-right-radius: 6px; }
+.row.me .bubble { background: #383838; color: var(--ink); border: 1px solid #454545; border-bottom-right-radius: 6px; }
 .time { font-size: 11px; color: var(--muted); margin: 1px 10px 0; }
 .empty { margin: auto; text-align: center; color: var(--muted); font-size: 16px; }
 .empty span { font-size: 44px; display: block; }
