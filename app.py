@@ -115,17 +115,19 @@ header[data-testid="stHeader"] { background: transparent; }
 [data-baseweb="tab"][aria-selected="true"] p { color: var(--on-main) !important; }
 [data-baseweb="tab-highlight"], [data-baseweb="tab-border"] { display: none; }
 
-/* Nút bấm tròn trịa, có "đáy" như kẹo */
+/* Nút bấm: nền tối, chữ trắng */
 .stButton > button, [data-testid="stFormSubmitButton"] > button {
-  background: var(--main); color: var(--on-main); border: none; border-radius: 999px;
-  font-weight: 700; box-shadow: 0 3px 0 var(--main-deep);
+  background: #333333; color: var(--ink); border: 1px solid #454545; border-radius: 999px;
+  font-weight: 600; box-shadow: none;
 }
-.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover {
-  background: var(--main-deep); color: var(--on-main);
+.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover,
+.stButton > button:focus, [data-testid="stFormSubmitButton"] > button:focus {
+  background: #404040; color: #fff; border-color: #555555;
 }
 .stButton > button:active, [data-testid="stFormSubmitButton"] > button:active {
-  transform: translateY(2px); box-shadow: 0 1px 0 var(--main-deep);
+  background: #2A2A2A; transform: translateY(1px);
 }
+.stButton > button p, [data-testid="stFormSubmitButton"] > button p { color: inherit !important; }
 
 /* Ô nhập tin nhắn */
 [data-testid="stChatInput"] > div {
