@@ -62,21 +62,19 @@ st.markdown(
     """
 <style>
 :root {
-  --main: #FFD43B;
-  --main-deep: #F0B400;
-  --cream: #FFFBEA;
-  --ink: #5A4520;
-  --muted: #A88F55;
-  --line: #F8E6A0;
+  --main: #FFD43B;      /* màu nhấn: vàng gà con */
+  --main-deep: #D9A800;
+  --on-main: #1F1F1F;   /* chữ trên nền vàng */
+  --bg: #1F1F1F;        /* nền app */
+  --surface: #2B2B2B;   /* thẻ, khung, bong bóng người khác */
+  --field: #333333;     /* ô nhập */
+  --ink: #EDEDED;       /* chữ chính */
+  --muted: #9A9A9A;     /* chữ phụ */
+  --line: #3D3D3D;      /* viền */
 }
 
-/* Nền chấm bi */
-.stApp {
-  background-color: var(--cream);
-  background-image: radial-gradient(#F6E3A0 1.6px, transparent 1.6px);
-  background-size: 24px 24px;
-  color: var(--ink);
-}
+/* Nền tối */
+.stApp { background: var(--bg); color: var(--ink); }
 header[data-testid="stHeader"] { background: transparent; }
 
 .stApp p, .stApp label, .stApp input, .stApp textarea,
@@ -88,42 +86,42 @@ header[data-testid="stHeader"] { background: transparent; }
 /* Tên app */
 .brand { display: flex; align-items: center; gap: 12px; margin: 4px 0 14px; }
 .brand .logo {
-  width: 56px; height: 56px; border-radius: 18px; background: #fff;
-  border: 2px solid var(--line); display: grid; place-items: center;
+  width: 56px; height: 56px; border-radius: 18px; background: var(--surface);
+  border: 1px solid var(--line); display: grid; place-items: center;
   font-size: 30px; transform: rotate(-6deg);
 }
 .brand h1 { font-size: 34px; font-weight: 700; color: var(--ink); margin: 0; padding: 0; line-height: 1; }
 .brand p { margin: 2px 0 0; color: var(--muted); font-size: 15px; }
 .me-chip {
-  display: inline-flex; align-items: center; gap: 6px; background: #fff;
-  border: 2px solid var(--line); border-radius: 999px; padding: 2px 12px 2px 4px;
+  display: inline-flex; align-items: center; gap: 6px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 999px; padding: 2px 12px 2px 4px;
   font-size: 14px; color: var(--ink);
 }
 .me-chip .ava { width: 26px; height: 26px; font-size: 15px; }
 
 /* Khung đăng nhập */
 [data-testid="stForm"] {
-  background: #fff; border: 2px solid var(--line); border-radius: 24px; padding: 18px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 18px;
 }
 [data-baseweb="input"] { border-radius: 14px !important; }
 
 /* Tab thành dạng viên thuốc */
 [data-baseweb="tab-list"] { gap: 8px; }
 [data-baseweb="tab"] {
-  background: #fff; border: 2px solid var(--line) !important;
+  background: var(--surface); border: 1px solid var(--line) !important;
   border-radius: 999px; padding: 2px 18px !important; height: auto;
 }
 [data-baseweb="tab"][aria-selected="true"] { background: var(--main); border-color: var(--main) !important; }
-[data-baseweb="tab"][aria-selected="true"] p { color: var(--ink) !important; }
+[data-baseweb="tab"][aria-selected="true"] p { color: var(--on-main) !important; }
 [data-baseweb="tab-highlight"], [data-baseweb="tab-border"] { display: none; }
 
 /* Nút bấm tròn trịa, có "đáy" như kẹo */
 .stButton > button, [data-testid="stFormSubmitButton"] > button {
-  background: var(--main); color: var(--ink); border: none; border-radius: 999px;
+  background: var(--main); color: var(--on-main); border: none; border-radius: 999px;
   font-weight: 700; box-shadow: 0 3px 0 var(--main-deep);
 }
 .stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover {
-  background: var(--main-deep); color: var(--ink);
+  background: var(--main-deep); color: var(--on-main);
 }
 .stButton > button:active, [data-testid="stFormSubmitButton"] > button:active {
   transform: translateY(2px); box-shadow: 0 1px 0 var(--main-deep);
@@ -131,14 +129,14 @@ header[data-testid="stHeader"] { background: transparent; }
 
 /* Ô nhập tin nhắn */
 [data-testid="stChatInput"] > div {
-  border-radius: 999px !important; border: 2px solid var(--line) !important; background: #fff !important;
+  border-radius: 999px !important; border: 1px solid var(--line) !important; background: var(--field) !important;
 }
 
 /* Khung tin nhắn: column-reverse để luôn cuộn sẵn ở tin mới nhất */
 .chat-box {
   height: 62vh; overflow-y: auto; display: flex; flex-direction: column-reverse;
-  gap: 4px; padding: 16px 12px; background: rgba(255,255,255,.75);
-  border: 2px solid var(--line); border-radius: 26px;
+  gap: 4px; padding: 16px 12px; background: #242424;
+  border: 1px solid var(--line); border-radius: 26px;
 }
 .row { display: flex; gap: 8px; align-items: flex-end; }
 .row.me { flex-direction: row-reverse; }
@@ -155,8 +153,8 @@ header[data-testid="stHeader"] { background: transparent; }
   padding: 7px 15px; border-radius: 20px; font-size: 16px; line-height: 1.45;
   overflow-wrap: anywhere;
 }
-.row.other .bubble { background: #fff; border: 2px solid var(--line); color: var(--ink); border-bottom-left-radius: 6px; }
-.row.me .bubble { background: var(--main); color: var(--ink); border-bottom-right-radius: 6px; }
+.row.other .bubble { background: var(--surface); border: 1px solid var(--line); color: var(--ink); border-bottom-left-radius: 6px; }
+.row.me .bubble { background: var(--main); color: var(--on-main); border-bottom-right-radius: 6px; }
 .time { font-size: 11px; color: var(--muted); margin: 1px 10px 0; }
 .empty { margin: auto; text-align: center; color: var(--muted); font-size: 16px; }
 .empty span { font-size: 44px; display: block; }
@@ -164,18 +162,18 @@ header[data-testid="stHeader"] { background: transparent; }
 
 /* Nút mở bảng icon */
 [data-testid="stPopover"] button {
-  background: #fff; border: 2px solid var(--line); border-radius: 999px; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 999px; color: var(--ink);
 }
-[data-testid="stPopover"] button:hover { border-color: var(--main); color: var(--main-deep); }
+[data-testid="stPopover"] button:hover { border-color: var(--main); color: var(--main); }
 
 /* Sảnh & phòng */
 .section { font-weight: 700; font-size: 18px; margin: 16px 0 6px; color: var(--ink); }
 .room-card {
-  display: flex; gap: 12px; align-items: center; background: #fff;
-  border: 2px solid var(--line); border-radius: 20px; padding: 10px 14px;
+  display: flex; gap: 12px; align-items: center; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 20px; padding: 10px 14px;
 }
 .room-ico {
-  width: 44px; height: 44px; border-radius: 14px; background: var(--main); color: var(--ink);
+  width: 44px; height: 44px; border-radius: 14px; background: var(--main); color: var(--on-main);
   display: grid; place-items: center; font-weight: 700; font-size: 20px; flex-shrink: 0;
 }
 .room-info { min-width: 0; flex: 1; }
@@ -187,30 +185,32 @@ header[data-testid="stHeader"] { background: transparent; }
 .member { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
 .member .ava { width: 28px; height: 28px; font-size: 16px; }
 .lobby-empty {
-  text-align: center; color: var(--muted); background: rgba(255,255,255,.75);
-  border: 2px dashed var(--line); border-radius: 20px; padding: 22px 12px;
+  text-align: center; color: var(--muted); background: var(--surface);
+  border: 1px dashed var(--line); border-radius: 20px; padding: 22px 12px;
 }
 .lobby-empty span { font-size: 40px; display: block; }
 
-/* Ép giao diện sáng kể cả khi điện thoại bật chế độ tối */
+/* Ép màu tối đồng bộ cho ô nhập, nhãn, popup */
 [data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] label { color: var(--ink) !important; }
 [data-baseweb="input"], [data-baseweb="base-input"], [data-baseweb="input"] input,
-[data-testid="stChatInput"] textarea {
-  background: #fff !important; color: var(--ink) !important; -webkit-text-fill-color: var(--ink);
+[data-testid="stChatInput"] textarea, [data-testid="stChatInput"] > div {
+  background: var(--field) !important; color: var(--ink) !important; -webkit-text-fill-color: var(--ink);
 }
-[data-baseweb="input"] { border: 2px solid var(--line) !important; }
+[data-baseweb="input"] { border: 1px solid var(--line) !important; }
 [data-baseweb="input"] button svg { fill: var(--muted); }
 [data-testid="stCaptionContainer"] p { color: var(--muted) !important; }
 [data-testid="stCheckbox"] p { color: var(--ink) !important; }
-[data-testid="stPopoverBody"] { background: #fff !important; color: var(--ink) !important; }
+[data-baseweb="input"] input::placeholder, [data-testid="stChatInput"] textarea::placeholder { color: var(--muted) !important; -webkit-text-fill-color: var(--muted); }
+[data-testid="stPopoverBody"] { background: var(--surface) !important; color: var(--ink) !important; }
 
 /* Tab dạng viên thuốc (cho cả bản Streamlit mới) */
 button[role="tab"] {
-  background: #fff !important; border: 2px solid var(--line) !important;
+  background: var(--surface) !important; border: 1px solid var(--line) !important;
   border-radius: 999px !important; padding: 2px 18px !important; margin-right: 8px;
 }
 button[role="tab"] p { color: var(--ink) !important; font-weight: 600; }
 button[role="tab"][aria-selected="true"] { background: var(--main) !important; border-color: var(--main) !important; }
+button[role="tab"][aria-selected="true"] p { color: var(--on-main) !important; }
 [data-baseweb="tab-highlight"], [data-baseweb="tab-border"] { display: none !important; }
 </style>
 """,
@@ -230,8 +230,8 @@ EMOJI_PICKER = r"""
 <style>
   * { box-sizing: border-box; margin: 0; }
   body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: transparent; }
-  .picker { background: #fff; border: 2px solid #F8E6A0; border-radius: 20px; overflow: hidden; }
-  .title { font-size: 13px; font-weight: 700; color: #A88F55; padding: 8px 12px 2px; }
+  .picker { background: #2B2B2B; border: 1px solid #3D3D3D; border-radius: 20px; overflow: hidden; }
+  .title { font-size: 13px; font-weight: 700; color: #9A9A9A; padding: 8px 12px 2px; }
   .grid {
     height: 208px; overflow-y: auto; padding: 4px 8px 8px;
     display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
@@ -241,11 +241,11 @@ EMOJI_PICKER = r"""
     border-radius: 10px; cursor: pointer;
     font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
   }
-  .grid button:hover { background: #FFF3C4; }
+  .grid button:hover { background: #3A3A3A; }
   .grid button.pop { animation: pop .25s ease; }
   @keyframes pop { 50% { transform: scale(1.35); } }
-  .empty { grid-column: 1 / -1; color: #A88F55; font-size: 14px; text-align: center; padding-top: 70px; }
-  .tabs { display: flex; justify-content: space-around; border-top: 2px solid #F8E6A0; background: #FFFBEA; }
+  .empty { grid-column: 1 / -1; color: #9A9A9A; font-size: 14px; text-align: center; padding-top: 70px; }
+  .tabs { display: flex; justify-content: space-around; border-top: 1px solid #3D3D3D; background: #242424; }
   .tabs button {
     flex: 1; font-size: 19px; padding: 6px 0; border: none; background: none; cursor: pointer;
     opacity: .45; font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
@@ -394,10 +394,10 @@ try {
 # Nút xin quyền hiện thông báo trên máy tính
 PERMISSION_HTML = r"""
 <style>
-  body { margin: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #5A4520; font-size: 14px; }
+  body { margin: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #EDEDED; font-size: 14px; }
   button {
-    font: inherit; font-weight: 700; color: #5A4520; background: #FFD43B; border: none;
-    border-radius: 999px; padding: 6px 16px; box-shadow: 0 3px 0 #F0B400; cursor: pointer;
+    font: inherit; font-weight: 700; color: #1F1F1F; background: #FFD43B; border: none;
+    border-radius: 999px; padding: 6px 16px; box-shadow: 0 3px 0 #D9A800; cursor: pointer;
   }
   p { margin: 0 0 8px; line-height: 1.4; }
 </style>
